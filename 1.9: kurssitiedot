@@ -4,7 +4,7 @@ const Statistics = (props) => {
   if (props.all === 0) {
 		return (
 			<div>
-				<h1>No Feedback Given Now</h1>
+				<h2>No Feedback Given Now</h2>
 			</div>
 		)
 	} 
