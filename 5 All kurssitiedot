@@ -1,0 +1,387 @@
+///////////////////// COMPONENTS ////////////////////////////////////////////
+
+////////////////////////BLOG.JS//////////////////////////////////////////////
+
+import React, { useState } from 'react'
+
+const Blog = ({ blog, likePost, removeBlog, loggedUser }) => {
+  const blogStyle = {
+    paddingTop: 10,
+    paddingLeft: 2,
+    border: 'solid',
+    borderRadius: 7,
+    borderWidth: 2,
+    marginBottom: 5,
+    borderColor: 'green'
+  }
+
+  const [visible, setVisible] = useState(false)
+
+  const hideWhenVisible = { display: visible ? 'none' : '' }
+  const showWhenVisible = { display: visible ? '' : 'none' }
+
+  const toggleVisibility = () => {
+    setVisible(!visible)
+  }
+
+  let RemoveBlogButton
+  if (blog.user.username === loggedUser.username) {
+    RemoveBlogButton = <div><button onClick={removeBlog}>remove</button></div>
+  } else {
+    RemoveBlogButton = <div></div>
+  }
+
+  return (
+    <div style={blogStyle}>
+      <div style={hideWhenVisible} id="titleAuthor">
+        {blog.title} {blog.author} <button onClick={toggleVisibility}>view</button>
+      </div>
+      <div style={showWhenVisible} id="urlLikesExpanded">
+        <div>{blog.title} {blog.author} <button onClick={toggleVisibility}>hide</button></div>
+        <div>{blog.url}</div>
+        <div className="likeDiv">likes {blog.likes} <button onClick={likePost}>like</button></div>
+        <div>{blog.user.name}</div>
+        {RemoveBlogButton}
+      </div>
+    </div>
+  )
+}
+
+
+export default Blog
+
+//////////////////////////////////////BLOGFORM.JS//////////////////////////////////////
+
+import React, { useState } from 'react'
+
+const BlogForm = ({ addBlog }) => {
+  const [newBlogTitle, setNewBlogTitle] = useState('')
+  const [newBlogAuthor, setNewBlogAuthor] = useState('')
+  const [newBlogUrl, setNewBlogUrl] = useState('')
+
+  const createBlog = async e => {
+    e.preventDefault()
+    addBlog({
+      title: newBlogTitle,
+      author: newBlogAuthor,
+      url: newBlogUrl
+    })
+    setNewBlogTitle('')
+    setNewBlogAuthor('')
+    setNewBlogUrl('')
+  }
+
+  return (
+    <>
+      <h2>Create new</h2>
+      <form onSubmit={createBlog}>
+        <div>
+          Title:
+          <input id="titleInput" type="text" value={newBlogTitle} name="Username"
+            onChange={({ target }) => setNewBlogTitle(target.value)} />
+        </div>
+        <div>
+          Author:
+          <input id="authorInput" type="text" value={newBlogAuthor} name="Username"
+            onChange={({ target }) => setNewBlogAuthor(target.value)} />
+        </div>
+        <div>
+          Url:
+          <input id="urlInput" type="text" value={newBlogUrl} name="Username"
+            onChange={({ target }) => setNewBlogUrl(target.value)} />
+        </div>
+        <button id="createBlogButton" type="submit">create</button>
+      </form>
+    </>
+  )
+}
+
+export default BlogForm
+
+/////////////////////////////////////TOGGLE.JS//////////////////////////////////////////////////////
+
+import PropTypes from 'prop-types'
+import React, { useState, useImperativeHandle } from 'react'
+
+const Togglable = React.forwardRef((props, ref) => {
+  const [visible, setVisible] = useState(false)
+
+  const hideWhenVisible = { display: visible ? 'none' : '' }
+  const showWhenVisible = { display: visible ? '' : 'none' }
+
+  const toggleVisibility = () => {
+    setVisible(!visible)
+  }
+
+  useImperativeHandle(ref, () => {
+    return {
+      toggleVisibility
+    }
+  })
+
+  return (
+    <div>
+      <div style={hideWhenVisible}>
+        <button onClick={toggleVisibility}>{props.buttonLabel}</button>
+      </div>
+      <div style={showWhenVisible}>
+        {props.children}
+        <button onClick={toggleVisibility}>cancel</button>
+      </div>
+    </div>
+  )
+})
+
+Togglable.propTypes = {
+  buttonLabel: PropTypes.string.isRequired
+}
+
+Togglable.displayName = 'Togglable'
+
+export default Togglable
+
+////////////////////////////////// SERVICES.JS ///////////////////////////////////////////////
+
+///////////////////////////////////BLOGS.JS///////////////////////////////////////////////////
+
+import axios from 'axios'
+const baseUrl = '/api/blogs'
+
+let token = null
+
+const setToken = newToken => {
+  token = `bearer ${newToken}`
+}
+
+const getAll = () => {
+  const request = axios.get(baseUrl)
+  return request.then(response => response.data)
+}
+
+const create = async newObject => {
+  const config = {
+    headers: { Authorization: token },
+  }
+
+  const response = await axios.post(baseUrl, newObject, config)
+  return response.data
+}
+
+const update = async (id, newObject) => {
+  const response = await axios.put(`${baseUrl}/${id}`, newObject)
+  return response.data
+}
+
+const remove = async id => {
+  const config = {
+    headers: { Authorization: token },
+  }
+  const response = await axios.delete(`${baseUrl}/${id}`, config)
+  return response.data
+}
+
+const blogService = { getAll, create, setToken, update, remove }
+export default blogService
+
+////////////////////////////////////////////LOGIN.JS/////////////////////////////////////////////////
+
+import axios from 'axios'
+const baseUrl = '/api/login'
+
+const login = async credentials => {
+  const response = await axios.post(baseUrl, credentials)
+  return response.data
+}
+const loginService = { login }
+export default loginService
+
+///////////////////////////////////////////APP.JS//////////////////////////////////////////////////////
+
+import React, { useState, useEffect, useRef } from 'react'
+import Blog from './components/Blog'
+import Togglable from './components/Togglable'
+import BlogForm from './components/BlogForm'
+import blogService from './services/blogs'
+import loginService from './services/login'
+
+const Notification = ({ message }) => {
+  const style = {
+    color: "green",
+    fontSize: 30,
+    border: "2px solid green",
+    borderRadius: "10px",
+    margin: "20px",
+    paddingLeft: "20px"
+  }
+
+  if (message === null) {
+    return null
+  }
+
+  return (
+    <div style ={style}className="message">{message}</div>
+  )
+}
+
+const App = () => {
+  const [blogs, setBlogs] = useState([])
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [user, setUser] = useState(null)
+  const [errorMessage, setErrorMessage] = useState(null)
+  const blogformRef = useRef()
+
+  useEffect(() => {
+    blogService.getAll().then(blogs => {
+      console.log(blogs)
+      setBlogs( blogs.sort((e1, e2) => e2.likes - e1.likes) )
+    }
+    )
+  }, [])
+
+  useEffect(() => {
+    const loggedUserJSON = window.localStorage.getItem('loggedBlogappUser')
+    if (loggedUserJSON) {
+      const user = JSON.parse(loggedUserJSON)
+      setUser(user)
+      blogService.setToken(user.token)
+    }
+  }, [])
+
+  const handleLogin = async event => {
+    event.preventDefault()
+    try {
+      const user = await loginService.login({
+        username, password,
+      })
+      window.localStorage.setItem(
+        'loggedBlogappUser', JSON.stringify(user)
+      )
+      blogService.setToken(user.token)
+      setUser(user)
+      setUsername('')
+      setPassword('')
+    } catch (exception) {
+      console.log(exception)
+      setErrorMessage('Wrong Credentials')
+      setTimeout(() => setErrorMessage(null), 5000)
+    }
+    console.log('logging in with', username, password)
+  }
+
+  const handleLogout = () => {
+    window.localStorage.clear()
+    setUser(null)
+  }
+
+  const addBlog = async blogObject => {
+    const returnedBlog = await blogService.create(blogObject)
+    console.log(returnedBlog)
+    setBlogs(blogs.concat(returnedBlog))
+    setErrorMessage(`New blog ${returnedBlog.title} added by ${returnedBlog.author}!`)
+    setTimeout(() => { setErrorMessage(null) }, 5000)
+    blogformRef.current.toggleVisibility()
+  }
+
+  const likePost = postId => {
+    const retFunc = async () => {
+      const post = blogs.filter(blog => blog.id === postId)[0]
+      post.likes++
+      const postCopy = { ...post }
+      postCopy.user = postCopy.user.id
+      await blogService.update(postId, postCopy)
+      setBlogs([...blogs])
+    }
+    return retFunc
+  }
+
+  const removeBlog = postId => {
+    const retFunc = async () => {
+      const post = blogs.filter(blog => blog.id === postId)[0]
+      const isconfirm = window.confirm(`Remove blog ${post.title} by ${post.author}`)
+      if (isconfirm) {
+        await blogService.remove(postId)
+        setBlogs(blogs.filter(blog => blog.id !== postId))
+      }
+    }
+
+    return retFunc
+  }
+
+  if (user === null) {
+    return (
+      <div>
+        <h2>Log in to application</h2>
+        <Notification message={errorMessage} />
+        <form onSubmit={handleLogin}>
+          <div>
+          username:
+            <input type="text" value={username} name="Username"
+              onChange={({ target }) => setUsername(target.value)} id="username" />
+          </div>
+          <div>
+          password:
+            <input
+              id="password"
+              type="password"
+              value={password}
+              name="Password"
+              onChange={({ target }) => setPassword(target.value)}
+            />
+          </div>
+          <button type="submit" id="login-button">login</button>
+        </form>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <h2>Blogs</h2>
+      <Notification message={errorMessage} />
+      <div>
+        {user.name} Logged in
+        <button onClick={handleLogout}>Log out</button>
+      </div>
+      <br />
+
+      <Togglable buttonLabel="Create new blog" ref={blogformRef}>
+        <BlogForm addBlog={addBlog} />
+      </Togglable>
+      <br />
+      {blogs.map(blog =>
+        <Blog
+          key={blog.id}
+          blog={blog}
+          likePost={likePost(blog.id)}
+          removeBlog={removeBlog(blog.id)}
+          loggedUser={user}
+        />
+      )}
+    </div>
+  )
+}
+
+export default App
+
+/////////////////////////////////////////////////INDEX.JS////////////////////////////////////////////////
+
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App'
+import './index.css'
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />)
+
+///////////////////////////////////////////////////INDEX.CSS/////////////////////////////////////////////
+
+.message {
+    /* color: red; */
+    background: rgb(211, 211, 211);
+    font-size: 20px;
+    border-style: solid;
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
